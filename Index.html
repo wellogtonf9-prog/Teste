@@ -1,0 +1,787 @@
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Lock, Heart, MessageCircle, Share2, Zap, Search, Bell, User, X, Play, Compass, 
+  LayoutGrid, Sparkles, AlertCircle, ShoppingBag, TrendingUp, Crown, Palette, 
+  ShieldCheck, Award, Check, Settings, Upload, Eye, EyeOff, Tag, Camera, Edit3,
+  ArrowLeft, Type, Image as ImageIcon, Users, LogOut, Repeat, Shield, PlusCircle, 
+  Library, Calendar, DollarSign, Send, Star, Wallet, CreditCard, Banknote, Gift
+} from 'lucide-react';
+
+// Importações do Firebase
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+
+// --- CONFIGURAÇÃO FIREBASE ---
+const firebaseConfig = {
+  apiKey: "AIzaSyCgEhBr5byxwwyR82ixV512fI8PNqNlB10",
+  authDomain: "crm-kan.firebaseapp.com",
+  databaseURL: "https://crm-kan-default-rtdb.firebaseio.com",
+  projectId: "crm-kan",
+  storageBucket: "crm-kan.firebasestorage.app",
+  messagingSenderId: "927927472313",
+  appId: "1:927927472313:web:ab4c7874f97c375d4a4b68",
+  measurementId: "G-9GPS0ZH22X"
+};
+
+// Inicialização do Firebase (Singleton)
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+/* --- DADOS E CONSTANTES --- */
+const TAGS_AVAILABLE = ["Afro", "Latina", "Asiática", "Ruiva", "Loira", "Tatuada", "Artística", "Preto & Branco", "Conceitual", "Moda", "Cosplay", "Curvy", "Texto", "Poesia", "Dicas", "Bastidores"];
+
+// Gerador de Benefícios de Nível (1 a 30)
+const LEVEL_BENEFITS = Array.from({ length: 30 }, (_, i) => {
+  const level = i + 1;
+  let benefit = "Destaque visual leve no perfil.";
+  if (level === 5) benefit = "1 Visualização Grátis (Post até R$5)";
+  if (level === 10) benefit = "5% de Desconto na Loja";
+  if (level === 15) benefit = "Tema 'Dark Matter' exclusivo";
+  if (level === 20) benefit = "2 Visualizações Grátis mensais";
+  if (level === 25) benefit = "Badge 'Veterano' Dourado";
+  if (level === 30) benefit = "10% de Desconto + Status VIP Honorário";
+  
+  return { level, minXp: (level - 1) * 200, benefit };
+});
+
+const STORE_ITEMS = [
+  { id: 'vip_sub', type: 'subscription', name: 'Lumina VIP', price: 29.90, category: 'Assinatura', icon: Crown, description: "Destaque em comentários, 2 Impulsos/mês e Badge Exclusivo." },
+  { id: 'become_creator', type: 'upgrade', name: 'Licença de Criador', price: 500, category: 'Carreira', icon: Camera, description: "Habilita painel de vendas e upload de mídia." },
+  { id: 'frame_gold', type: 'cosmetic', name: 'Borda Ouro', price: 50, category: 'Estilo', icon: User, description: "Borda dourada brilhante para seu avatar." },
+  { id: 'name_neon', type: 'cosmetic', name: 'Nome Neon', price: 75, category: 'Estilo', icon: Palette, description: "Seu nome brilha em gradiente neon." },
+  { id: 'boost_pack', type: 'business', name: 'Pacote Impulso', price: 80, category: 'Vendas', icon: TrendingUp, description: "Seus posts no topo por 24h." },
+];
+
+const INITIAL_USERS = [
+  { 
+    id: 1, name: "Elara Vance", nickname: "ElaraDigital", email: "elara@lumina.com", role: 'creator', 
+    xp: 1200, balance: 500, avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop",
+    bio: "Arquiteta Digital & Surrealista 3D.", tags: ["Artística", "Conceitual"], inventory: ['frame_gold'], 
+    following: [2], followersCount: 1250, postsCount: 42, unlockedIds: [], age: 24, birthdate: "1999-05-20", 
+    isVip: true, boostsRemaining: 2, salesRevenue: 1450.00, salesCount: 58, bankAccount: null,
+    privacy: { showAge: false, showFullName: true }
+  },
+  { 
+    id: 2, name: "Kaelen Moss", nickname: "KaelenNoise", email: "kaelen@lumina.com", role: 'creator', 
+    xp: 450, balance: 100, avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&h=200&fit=crop",
+    bio: "Fotografia urbana.", tags: ["Preto & Branco"], inventory: [], following: [1], followersCount: 300, 
+    postsCount: 15, unlockedIds: [], age: 27, birthdate: "1996-11-12", isVip: false, boostsRemaining: 0, 
+    salesRevenue: 200.00, salesCount: 10, bankAccount: null,
+    privacy: { showAge: true, showFullName: false }
+  }
+];
+
+const INITIAL_POSTS = [
+  { id: 101, creatorId: 1, type: 'image', src: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600", title: "Sonhos Neon", description: "Ensaio noturno em Tokyo.", locked: false, likes: 1204, price: 0, tags: ["Conceitual", "Artística"], promoted: true, likedBy: [], comments: [] },
+  { id: 102, creatorId: 1, type: 'video', src: "https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?w=600", title: "Processo V.04", description: "Making of exclusivo.", locked: true, price: 25, likes: 850, tags: ["Artística"], promoted: false, likedBy: [], comments: [] },
+  { id: 103, creatorId: 2, type: 'image', src: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=600", title: "Cidade Cyberpunk", description: "", locked: false, likes: 2300, price: 0, tags: ["Moda", "Preto & Branco"], promoted: false, likedBy: [], comments: [] },
+  { id: 104, creatorId: 1, type: 'text', content: "A arte digital não é apenas pixels, é a manifestação da alma através da luz. ✨ #DigitalArt #Pensamento", title: "Reflexão do Dia", description: "Pensamento rápido.", locked: false, likes: 540, price: 0, tags: ["Texto"], promoted: false, likedBy: [], comments: [] },
+];
+
+/* --- UTILITÁRIOS --- */
+const validateCPF = (cpf) => cpf.length === 14; 
+const maskCPF = (value) => value.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})/, '$1-$2').replace(/(-\d{2})\d+?$/, '$1');
+const calculateAge = (date) => { if (!date) return 0; const d = new Date(date); return new Date().getFullYear() - d.getFullYear(); };
+
+const getLevelInfo = (xp) => {
+  const levelData = LEVEL_BENEFITS.slice().reverse().find(l => xp >= l.minXp) || LEVEL_BENEFITS[0];
+  const nextLevel = LEVEL_BENEFITS.find(l => l.level === levelData.level + 1);
+  const progress = nextLevel ? ((xp - levelData.minXp) / (nextLevel.minXp - levelData.minXp)) * 100 : 100;
+  return { ...levelData, progress, nextLevel };
+};
+
+/* --- COMPONENTES UI --- */
+const MeshGradient = () => (
+  <div className="fixed inset-0 z-[-1] overflow-hidden bg-[#050505]">
+    <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-violet-900/30 rounded-full blur-[120px] animate-pulse" />
+    <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-900/20 rounded-full blur-[120px]" />
+    <div className="absolute inset-0 opacity-[0.03] pointer-events-none mix-blend-overlay" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
+  </div>
+);
+
+const LuminaButton = ({ children, variant = 'primary', onClick, className = '', icon: Icon, disabled = false, size = 'md' }) => {
+  const sizes = { sm: "px-3 py-1.5 text-xs", md: "px-6 py-3 text-sm", lg: "px-8 py-4 text-lg" };
+  const baseStyle = `relative rounded-xl font-medium transition-all duration-300 overflow-hidden group flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${sizes[size]}`;
+  const variants = {
+    primary: "bg-gradient-to-r from-violet-600 to-blue-600 text-white shadow-[0_0_20px_rgba(139,92,246,0.3)] hover:shadow-[0_0_30px_rgba(139,92,246,0.5)]",
+    glass: "bg-white/5 backdrop-blur-md border border-white/10 text-white hover:bg-white/10 hover:border-white/20",
+    ghost: "text-gray-400 hover:text-white",
+    gold: "bg-gradient-to-r from-yellow-500 to-amber-600 text-black font-bold shadow-amber-500/20 shadow-lg",
+    outline: "border border-white/20 text-white hover:bg-white/5",
+    success: "bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg"
+  };
+  return (
+    <motion.button whileHover={disabled ? {} : { scale: 1.02 }} whileTap={disabled ? {} : { scale: 0.98 }} className={`${baseStyle} ${variants[variant]} ${className}`} onClick={disabled ? undefined : onClick} disabled={disabled}>
+      {(variant === 'primary' || variant === 'gold') && !disabled && <div className="absolute inset-0 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/40 to-transparent" />}
+      {Icon && <Icon size={size === 'sm' ? 14 : 18} />}
+      <span className="relative z-10 flex items-center gap-2 justify-center">{children}</span>
+    </motion.button>
+  );
+};
+
+const TagBadge = ({ label, isSelected, onClick }) => (
+  <button onClick={() => onClick && onClick(label)} className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border ${isSelected ? 'bg-white text-black border-white' : 'bg-transparent text-gray-400 border-white/10 hover:border-white/30'}`}>{label}</button>
+);
+
+const XPProgressBar = ({ xp, onClick }) => {
+  const { level, progress, nextLevel } = getLevelInfo(xp);
+  return (
+    <div className="flex items-center gap-3 cursor-pointer group" onClick={onClick}>
+      <div className="relative">
+        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-500 to-amber-600 flex items-center justify-center font-bold text-black border-2 border-yellow-300 shadow-lg group-hover:scale-110 transition-transform z-10 relative text-lg">{level}</div>
+      </div>
+      <div className="flex flex-col gap-1 w-24 sm:w-32">
+        <div className="flex justify-between text-[9px] uppercase font-bold text-gray-400"><span>{xp} XP</span><span>{nextLevel ? nextLevel.minXp : 'MAX'}</span></div>
+        <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden border border-white/5"><motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500" /></div>
+      </div>
+    </div>
+  );
+};
+
+/* --- MODAIS DE BENEFÍCIOS E PAINÉIS --- */
+const LevelBenefitsModal = ({ isOpen, onClose, currentLevel }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[#121212] border border-white/10 rounded-2xl w-full max-w-lg h-[80vh] flex flex-col">
+        <div className="p-4 border-b border-white/10 flex justify-between items-center">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2"><Award className="text-yellow-400"/> Benefícios por Nível</h2>
+          <button onClick={onClose}><X size={20} className="text-gray-400"/></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-3">
+          {LEVEL_BENEFITS.map((b) => (
+            <div key={b.level} className={`p-4 rounded-xl border ${b.level <= currentLevel ? 'bg-white/10 border-violet-500/50' : 'bg-black/40 border-white/5'} flex items-center gap-4`}>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${b.level <= currentLevel ? 'bg-violet-600 text-white' : 'bg-white/5 text-gray-500'}`}>{b.level}</div>
+              <div className="flex-1">
+                <p className={`text-sm font-bold ${b.level <= currentLevel ? 'text-white' : 'text-gray-500'}`}>{b.benefit}</p>
+                <p className="text-[10px] text-gray-600 uppercase mt-1">{b.minXp} XP Necessário</p>
+              </div>
+              {b.level <= currentLevel && <Check size={16} className="text-green-400"/>}
+            </div>
+          ))}
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+const CreatorDashboardOverlay = ({ isOpen, onClose, user, onSaveBank, onWithdraw }) => {
+  const [bankInfo, setBankInfo] = useState(user.bankAccount || '');
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+      <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-[#121212] border border-white/10 rounded-3xl w-full max-w-2xl p-6 relative">
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X/></button>
+        <h2 className="text-2xl font-bold mb-6 flex items-center gap-2 text-white"><Banknote className="text-green-400"/> Painel Financeiro</h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+           <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+              <span className="text-xs text-gray-500 uppercase font-bold">Saldo Disponível</span>
+              <div className="text-3xl font-bold text-white mt-1">R$ {user.salesRevenue ? user.salesRevenue.toFixed(2) : "0.00"}</div>
+           </div>
+           <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+              <span className="text-xs text-gray-500 uppercase font-bold">Total Vendas</span>
+              <div className="text-3xl font-bold text-white mt-1">{user.salesCount || 0}</div>
+           </div>
+           <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+              <span className="text-xs text-gray-500 uppercase font-bold">Taxa Plataforma</span>
+              <div className="text-3xl font-bold text-gray-400 mt-1">15%</div>
+           </div>
+        </div>
+
+        <div className="bg-black/40 p-6 rounded-2xl border border-white/5 mb-6">
+           <h3 className="font-bold text-white mb-4 flex items-center gap-2"><CreditCard size={18}/> Dados de Recebimento</h3>
+           <input className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white mb-4" placeholder="Chave PIX ou Conta Bancária" value={bankInfo} onChange={e => setBankInfo(e.target.value)}/>
+           <LuminaButton onClick={() => onSaveBank(bankInfo)} size="sm" variant="outline">Salvar Dados</LuminaButton>
+        </div>
+
+        <LuminaButton 
+          className="w-full" 
+          variant={user.salesRevenue >= 50 ? 'success' : 'ghost'}
+          disabled={user.salesRevenue < 50}
+          onClick={onWithdraw}
+        >
+           {user.salesRevenue >= 50 ? `Solicitar Saque de R$ ${user.salesRevenue.toFixed(2)}` : 'Mínimo de R$ 50,00 para saque'}
+        </LuminaButton>
+      </motion.div>
+    </div>
+  );
+};
+
+const VipDashboardOverlay = ({ isOpen, onClose, user }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+      <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-gradient-to-br from-yellow-900/40 to-black border border-yellow-500/30 rounded-3xl w-full max-w-lg p-8 relative text-center">
+        <button onClick={onClose} className="absolute top-4 right-4 text-yellow-500/50 hover:text-yellow-400"><X/></button>
+        <Crown size={48} className="text-yellow-400 mx-auto mb-4 drop-shadow-[0_0_15px_rgba(250,204,21,0.5)]"/>
+        <h2 className="text-3xl font-bold text-white mb-2">Área VIP</h2>
+        <p className="text-yellow-200/60 mb-8">Seus privilégios exclusivos estão ativos.</p>
+
+        <div className="grid grid-cols-2 gap-4 mb-8">
+           <div className="bg-black/40 p-4 rounded-xl border border-yellow-500/20">
+              <div className="text-2xl font-bold text-white">{user.boostsRemaining}</div>
+              <div className="text-[10px] uppercase text-yellow-500 font-bold">Impulsos Restantes</div>
+           </div>
+           <div className="bg-black/40 p-4 rounded-xl border border-yellow-500/20">
+              <div className="text-2xl font-bold text-white">Ativo</div>
+              <div className="text-[10px] uppercase text-yellow-500 font-bold">Status Mensal</div>
+           </div>
+        </div>
+
+        <div className="text-left space-y-3 mb-8">
+           <div className="flex items-center gap-3 text-sm text-gray-300"><Check className="text-yellow-400" size={16}/> Comentários destacados com coroa.</div>
+           <div className="flex items-center gap-3 text-sm text-gray-300"><Check className="text-yellow-400" size={16}/> 2 Impulsionamentos mensais gratuitos.</div>
+           <div className="flex items-center gap-3 text-sm text-gray-300"><Check className="text-yellow-400" size={16}/> Badge de apoiador no perfil.</div>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+/* --- CREATE POST OVERLAY --- */
+const CreatePostOverlay = ({ isOpen, onClose, onUpload, currentUser }) => {
+  const [text, setText] = useState('');
+  const [media, setMedia] = useState(null); 
+  const [showSettings, setShowSettings] = useState(false);
+  const [postSettings, setPostSettings] = useState({ price: '', tags: [] });
+
+  useEffect(() => {
+    if (isOpen) {
+      setText('');
+      setMedia(null);
+      setShowSettings(false);
+      setPostSettings({ price: '', tags: [] });
+    }
+  }, [isOpen]);
+
+  const handleMediaSelect = () => {
+    if (currentUser.role !== 'creator') {
+      return alert("Apenas Criadores podem fazer upload de mídia. Torne-se um criador na Loja!");
+    }
+    setMedia("https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800"); 
+  };
+
+  const handlePublish = () => {
+    if (!text && !media) return alert("Escreva algo.");
+    
+    onUpload({
+      content: text,
+      type: media ? 'image' : 'text',
+      src: media,
+      title: text.substring(0, 30) + (text.length > 30 ? '...' : ''), 
+      description: text,
+      price: postSettings.price,
+      tags: postSettings.tags,
+      isLocked: Number(postSettings.price) > 0
+    });
+    onClose();
+  };
+
+  const toggleTag = (tag) => {
+    setPostSettings(prev => ({
+      ...prev,
+      tags: prev.tags.includes(tag) ? prev.tags.filter(t => t !== tag) : [...prev.tags, tag]
+    }));
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ y: "100%" }}
+          animate={{ y: 0 }}
+          exit={{ y: "100%" }}
+          transition={{ type: "spring", damping: 25, stiffness: 200 }}
+          className="fixed inset-0 z-[100] flex flex-col bg-[#0a0a0a] md:bg-black/80 md:backdrop-blur-sm md:items-center md:justify-center"
+        >
+          <div className="w-full h-full md:w-[600px] md:h-[650px] bg-[#121212] md:rounded-3xl md:border md:border-white/10 flex flex-col relative overflow-hidden shadow-2xl">
+            <div className="flex justify-between items-center p-4 border-b border-white/10">
+              <button onClick={onClose} className="text-white font-medium hover:text-gray-300">Cancelar</button>
+              <LuminaButton size="sm" onClick={handlePublish} className="px-6 rounded-full" disabled={!text && !media}>
+                Publicar
+              </LuminaButton>
+            </div>
+
+            <div className="flex-1 p-4 overflow-y-auto custom-scrollbar">
+              <div className="flex gap-4">
+                <div className="shrink-0">
+                   <img src={currentUser?.avatar} className="w-10 h-10 rounded-full object-cover border border-white/10" />
+                </div>
+                <div className="flex-1">
+                   <textarea 
+                      className="w-full bg-transparent text-white text-lg placeholder-gray-500 focus:outline-none resize-none min-h-[120px]"
+                      placeholder="O que está acontecendo?"
+                      value={text}
+                      onChange={(e) => setText(e.target.value)}
+                      autoFocus
+                   />
+                   
+                   {media && (
+                      <div className="relative mt-2 rounded-2xl overflow-hidden group border border-white/10">
+                         <img src={media} className="w-full max-h-[300px] object-cover" />
+                         <button onClick={() => setMedia(null)} className="absolute top-2 right-2 bg-black/60 p-1.5 rounded-full text-white hover:bg-black/80 transition-colors"><X size={16} /></button>
+                      </div>
+                   )}
+
+                   {showSettings && currentUser.role === 'creator' && (
+                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-4 pt-4 border-t border-white/10">
+                         <div className="mb-4">
+                            <label className="text-xs font-bold text-gray-500 uppercase mb-2 block flex items-center gap-2"><DollarSign size={12}/> Preço para desbloquear (R$)</label>
+                            <input type="number" placeholder="0 = Grátis" className="bg-white/5 border border-white/10 rounded-lg p-2 text-white text-sm w-32 focus:outline-none focus:border-violet-500" value={postSettings.price} onChange={(e) => setPostSettings({...postSettings, price: e.target.value})} />
+                         </div>
+                         <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase mb-2 block flex items-center gap-2"><Tag size={12}/> Tags</label>
+                            <div className="flex flex-wrap gap-2">{TAGS_AVAILABLE.map(tag => <TagBadge key={tag} label={tag} isSelected={postSettings.tags.includes(tag)} onClick={toggleTag} />)}</div>
+                         </div>
+                      </motion.div>
+                   )}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-white/10 bg-[#121212]">
+               <div className="flex items-center gap-4">
+                  <button onClick={handleMediaSelect} className={`p-2 rounded-full transition-colors ${currentUser.role === 'creator' ? 'text-violet-400 hover:bg-violet-500/10' : 'text-gray-600 cursor-not-allowed'}`} title={currentUser.role === 'creator' ? "Adicionar Mídia" : "Apenas Criadores"}>
+                     <ImageIcon size={24} />
+                  </button>
+                  {currentUser.role === 'creator' && (
+                    <button onClick={() => setShowSettings(!showSettings)} className={`p-2 rounded-full transition-colors ${showSettings ? 'text-white bg-white/10' : 'text-violet-400 hover:bg-violet-500/10'}`} title="Configurações do Post">
+                        <Settings size={24} />
+                    </button>
+                  )}
+                  <div className="flex-1"></div>
+                  {currentUser.role === 'creator' && (
+                    <span className="text-xs text-gray-600 font-medium">
+                        {postSettings.price > 0 ? "Conteúdo Pago" : "Público"}
+                    </span>
+                  )}
+               </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
+/* --- COMMENTS OVERLAY --- */
+const CommentsOverlay = ({ isOpen, onClose, post, currentUser, onAddComment }) => {
+  const [newComment, setNewComment] = useState("");
+  if (!isOpen) return null;
+  const handleSubmit = () => {
+    if (!newComment.trim()) return;
+    onAddComment(post.id, newComment);
+    setNewComment("");
+  };
+  return (
+    <div className="fixed inset-0 z-[110] flex items-end md:items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="bg-[#121212] border border-white/10 w-full max-w-md md:rounded-2xl rounded-t-2xl max-h-[80vh] flex flex-col shadow-2xl">
+        <div className="p-4 border-b border-white/10 flex justify-between items-center"><h3 className="font-bold text-white">Comentários ({post.comments?.length || 0})</h3><button onClick={onClose}><X size={20} className="text-gray-400"/></button></div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+          {post.comments && post.comments.length > 0 ? (
+            post.comments.map((comment) => (
+              <div key={comment.id} className={`flex gap-3 p-3 rounded-xl ${comment.isVip ? 'bg-gradient-to-r from-yellow-900/10 to-transparent border border-yellow-500/20' : ''}`}>
+                <img src={comment.avatar} className={`w-8 h-8 rounded-full object-cover ${comment.isVip ? 'ring-1 ring-yellow-500' : ''}`} />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2"><span className={`text-xs font-bold ${comment.isVip ? 'text-yellow-400 flex items-center gap-1' : 'text-white'}`}>{comment.username}{comment.isVip && <Crown size={10} />}</span><span className="text-[10px] text-gray-600">{new Date(comment.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
+                  <p className="text-sm text-gray-300 mt-1">{comment.text}</p>
+                </div>
+              </div>
+            ))
+          ) : (<div className="text-center text-gray-500 py-10">Seja o primeiro a comentar!</div>)}
+        </div>
+        <div className="p-4 border-t border-white/10 bg-[#0a0a0a] rounded-b-2xl"><div className="flex gap-2"><input className="flex-1 bg-white/5 border border-white/10 rounded-full px-4 py-2 text-sm text-white focus:outline-none focus:border-violet-500" placeholder="Adicione um comentário..." value={newComment} onChange={(e) => setNewComment(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSubmit()} /><button onClick={handleSubmit} className="p-2 bg-violet-600 rounded-full text-white hover:bg-violet-700"><Send size={16} /></button></div></div>
+      </motion.div>
+    </div>
+  );
+};
+
+/* --- POST CARD --- */
+const PostCard = ({ post, creator, currentUser, onUnlock, onBoost, onToggleLike, onRepost, onUserClick, onOpenComments }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const isOwner = currentUser?.id === post.creatorId;
+  const isLiked = post.likedBy?.includes(currentUser?.id);
+  const isUnlocked = !post.locked || isOwner || currentUser?.unlockedIds?.includes(post.id);
+  const canBoost = !post.promoted && (isOwner || (currentUser.isVip && currentUser.boostsRemaining > 0));
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className={`relative group mb-8 w-full max-w-xl mx-auto ${post.promoted ? 'p-[1px] rounded-3xl bg-gradient-to-br from-yellow-400 via-orange-500 to-transparent' : ''}`}>
+      <div className="relative overflow-hidden rounded-3xl bg-[#0F0F0F] border border-white/5 shadow-2xl flex flex-col select-none">
+        {post.isRepost && <div className="px-4 pt-3 pb-1 text-gray-500 text-xs flex items-center gap-2"><Repeat size={12} className="text-gray-400"/><span className="font-medium">Você repostou</span></div>}
+        <div className="p-4 z-20 flex justify-between items-center bg-gradient-to-b from-black/20 to-transparent">
+          <div className="flex items-center gap-3 cursor-pointer group/user" onClick={() => onUserClick(creator?.id)}>
+            <img src={creator?.avatar} className="w-10 h-10 rounded-full border border-white/20 group-hover/user:border-violet-500 transition-colors pointer-events-none" />
+            <div className="flex flex-col">
+               <div className="flex items-center gap-1"><span className="text-sm font-bold text-white leading-tight group-hover/user:text-violet-400 transition-colors">{creator?.nickname}</span>{creator?.isVip && <Crown size={12} className="text-yellow-400" />}</div>
+               {creator?.role === 'creator' && <span className="text-[10px] text-gray-500 flex items-center gap-1">Criador Verificado <Check size={8} /></span>}
+            </div>
+          </div>
+          <button className="p-2 rounded-full text-gray-500 hover:text-white hover:bg-white/5 transition-colors"><Share2 size={18} /></button>
+        </div>
+
+        <div className="relative w-full overflow-hidden bg-gray-900/50" onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
+          <div className="absolute inset-0 z-10 bg-transparent" />
+          {post.promoted && <div className="absolute bottom-3 right-3 z-20 bg-yellow-500/90 text-black text-[10px] font-bold px-3 py-1 rounded-full backdrop-blur-md flex items-center gap-1 shadow-lg pointer-events-none"><TrendingUp size={12} /> PROMOVIDO</div>}
+          {post.type === 'text' ? (
+             <div className="p-8 flex flex-col justify-center items-start text-left min-h-[180px] bg-gradient-to-br from-[#1a1a1a] to-black">
+                <h3 className="text-xl md:text-2xl font-medium text-gray-200 mb-4 leading-relaxed selection:bg-none">"{post.content}"</h3>
+                <div className="w-12 h-1 bg-violet-500/30 rounded-full"/>
+             </div>
+          ) : (
+             !isUnlocked ? (
+                <>
+                  <img src={post.src} className="w-full h-[400px] object-cover filter blur-2xl scale-110 brightness-50 opacity-50 absolute inset-0 pointer-events-none" />
+                  <div className="relative z-20 flex flex-col items-center justify-center h-[400px] p-6 text-center">
+                    <div className="w-14 h-14 bg-white/10 rounded-full flex items-center justify-center mb-4 text-violet-400 backdrop-blur-md border border-white/10"><Lock size={24} /></div>
+                    <h3 className="text-white font-bold text-xl mb-2">Conteúdo Exclusivo</h3>
+                    <p className="text-gray-400 text-sm mb-6 max-w-xs">Assine ou compre para visualizar este conteúdo em alta resolução.</p>
+                    <LuminaButton variant="primary" onClick={() => onUnlock(post)} size="md" className="shadow-violet-500/20">Desbloquear R$ {post.price}</LuminaButton>
+                  </div>
+                </>
+             ) : (
+                <><motion.img src={post.src} className="w-full h-auto max-h-[600px] object-cover pointer-events-none select-none" animate={{ scale: isHovered ? 1.01 : 1 }} transition={{ duration: 0.6 }} />{post.type === 'video' && isHovered && <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none"><Play size={48} className="text-white/80 filter drop-shadow-lg"/></div>}</>
+             )
+          )}
+        </div>
+
+        <div className="p-4 bg-[#0F0F0F] border-t border-white/5">
+          <div className="flex justify-between items-center mb-3">
+             <div className="flex gap-4">
+               <button onClick={() => onToggleLike(post.id)} className="flex items-center gap-1.5 text-gray-400 hover:text-red-500 transition-colors group"><Heart size={20} className={isLiked ? "fill-red-500 text-red-500" : "group-hover:scale-110 transition-transform"} /><span className={`text-sm ${isLiked ? "text-red-500" : ""}`}>{post.likes}</span></button>
+               <button onClick={() => onOpenComments(post)} className="flex items-center gap-1.5 text-gray-400 hover:text-blue-400 transition-colors"><MessageCircle size={20} /><span className="text-sm">{post.comments?.length || 0}</span></button>
+               {(isUnlocked || post.type === 'text') && !isOwner && <button onClick={() => onRepost(post)} className="flex items-center gap-1.5 text-gray-400 hover:text-green-400 transition-colors"><Repeat size={20} /></button>}
+             </div>
+             {canBoost && <button onClick={() => onBoost(post.id)} className="text-xs text-yellow-400 hover:text-yellow-300 flex items-center gap-1 bg-yellow-400/10 px-3 py-1.5 rounded-full border border-yellow-400/20"><Zap size={12}/> {currentUser.isVip && !isOwner ? `Impulsionar (${currentUser.boostsRemaining})` : 'Impulsionar'}</button>}
+          </div>
+          <h4 className="text-white font-medium text-sm mb-1">{post.title}</h4>
+          {post.description && post.type !== 'text' && <p className="text-gray-400 text-xs line-clamp-2 leading-relaxed">{post.description}</p>}
+          {post.tags && <div className="flex flex-wrap gap-1 mt-3">{post.tags.map(t => <span key={t} className="text-[10px] text-violet-300">#{t}</span>)}</div>}
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+/* --- DOCK FLUTUANTE --- */
+const FloatingDock = ({ view, setView, user, onUpload, onViewSelf }) => {
+  const items = [
+    { id: 'feed', icon: LayoutGrid, label: 'Feed' },
+    { id: 'creators', icon: Compass, label: 'Criadores' },
+    { id: 'store', icon: ShoppingBag, label: 'Loja' },
+    { id: 'profile', icon: User, label: 'Perfil' },
+  ];
+
+  const handleUploadClick = () => {
+    // Agora todos podem publicar texto, criadores podem mídia
+    onUpload(); 
+  };
+
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-auto max-w-[95%]">
+       <div className="flex items-center gap-1 md:gap-3 p-2 rounded-3xl bg-[#121212]/90 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50">
+          {items.slice(0, 2).map((item) => (
+             <button key={item.id} onClick={() => setView(item.id)} className={`relative flex flex-col items-center justify-center w-14 h-14 rounded-2xl transition-all duration-300 ${view === item.id ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'}`}>
+                <item.icon size={22} strokeWidth={view === item.id ? 2.5 : 2} />
+             </button>
+          ))}
+
+          <button onClick={handleUploadClick} className="flex flex-col items-center justify-center w-16 h-16 -mt-6 bg-gradient-to-br from-violet-600 to-fuchsia-600 rounded-2xl text-white shadow-lg shadow-violet-500/30 hover:scale-105 transition-transform border-4 border-[#0a0a0a] z-50">
+             <PlusCircle size={28} strokeWidth={2.5} />
+          </button>
+
+          {items.slice(2, 4).map((item) => (
+             <button key={item.id} onClick={() => { if (item.id === 'profile') onViewSelf(); else setView(item.id); }} className={`relative flex flex-col items-center justify-center w-14 h-14 rounded-2xl transition-all duration-300 ${view === item.id ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'}`}>
+                <item.icon size={22} strokeWidth={view === item.id ? 2.5 : 2} />
+             </button>
+          ))}
+       </div>
+    </div>
+  );
+};
+
+/* --- EDIT PROFILE --- */
+const EditProfileModal = ({ isOpen, onClose, user, onSave }) => { /* ... código anterior mantido ... */
+  const [formData, setFormData] = useState({ ...user });
+  if (!isOpen) return null;
+  const toggleTag = (tag) => setFormData(prev => ({...prev, tags: prev.tags.includes(tag) ? prev.tags.filter(t => t !== tag) : [...prev.tags, tag]}));
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+       <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="bg-[#121212] border border-white/10 rounded-2xl w-full max-w-md p-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
+          <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-white">Editar Perfil</h2><button onClick={onClose}><X className="text-gray-400 hover:text-white"/></button></div>
+          <div className="space-y-4">
+             <div className="flex flex-col items-center mb-4"><div className="w-24 h-24 rounded-full overflow-hidden bg-gray-800 mb-2 border border-white/20"><img src={formData.avatar} className="w-full h-full object-cover" alt="avatar preview" /></div><div className="w-full"><label className="text-xs text-gray-500 font-bold uppercase">URL da Foto de Perfil</label><input className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-white focus:outline-none focus:border-violet-500 text-xs" value={formData.avatar} onChange={e => setFormData({...formData, avatar: e.target.value})} placeholder="https://..." /></div></div>
+             <div><label className="text-xs text-gray-500 font-bold uppercase">Nickname</label><input className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:border-violet-500" value={formData.nickname} onChange={e => setFormData({...formData, nickname: e.target.value})} /></div>
+             <div><label className="text-xs text-gray-500 font-bold uppercase">Bio</label><textarea className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:border-violet-500 h-24 resize-none" value={formData.bio} onChange={e => setFormData({...formData, bio: e.target.value})} /></div>
+             <div><label className="text-xs text-gray-500 font-bold uppercase mb-2 block">Seus Interesses / Tags</label><div className="flex flex-wrap gap-2">{TAGS_AVAILABLE.map(tag => <TagBadge key={tag} label={tag} isSelected={formData.tags?.includes(tag)} onClick={toggleTag} />)}</div></div>
+             <div className="pt-4 flex gap-3"><LuminaButton variant="ghost" onClick={onClose} className="flex-1">Cancelar</LuminaButton><LuminaButton onClick={() => { onSave(formData); onClose(); }} className="flex-1">Salvar</LuminaButton></div>
+          </div>
+       </motion.div>
+    </div>
+  );
+};
+
+/* --- USER PROFILE (VIEWING OTHERS) --- */
+const UserProfile = ({ user, currentUser, posts, onFollow, onUpdateSettings, onBack, onEditProfile, onUserClick, onOpenComments, onToggleLike, onRepost, onBoost, onUnlock }) => {
+  const [activeTab, setActiveTab] = useState('posts'); 
+  const [showSettings, setShowSettings] = useState(false);
+  const isOwnProfile = user.id === currentUser.id;
+  const canSeeName = isOwnProfile || user.privacy?.showFullName;
+  const canSeeAge = isOwnProfile || user.privacy?.showAge;
+  const hasGoldFrame = user.inventory?.includes('frame_gold');
+  const hasNeonName = user.inventory?.includes('name_neon');
+  const isFollowing = currentUser?.following?.includes(user.id);
+  const userPosts = posts.filter(p => p.creatorId === user.id && !p.isRepost);
+  const purchasedPosts = isOwnProfile ? posts.filter(p => currentUser.unlockedIds?.includes(p.id)) : [];
+
+  if (showSettings && isOwnProfile) {
+    return (
+      <div className="max-w-2xl mx-auto p-4 animate-in slide-in-from-right pt-20">
+        <div className="flex items-center gap-4 mb-6"><button onClick={() => setShowSettings(false)} className="bg-white/5 p-2 rounded-full hover:bg-white/10"><ArrowLeft size={20}/></button><h2 className="text-2xl font-bold">Privacidade</h2></div>
+        <div className="bg-[#121212] border border-white/10 rounded-2xl p-6 space-y-6">
+           <div className="flex justify-between items-center"><div><h4 className="font-bold text-white">Nome Completo Público</h4></div><button onClick={() => onUpdateSettings('showFullName', !user.privacy.showFullName)} className={`w-12 h-6 rounded-full transition-colors relative ${user.privacy.showFullName ? 'bg-violet-600' : 'bg-gray-700'}`}><div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${user.privacy.showFullName ? 'left-7' : 'left-1'}`} /></button></div>
+           <div className="flex justify-between items-center"><div><h4 className="font-bold text-white">Idade Pública</h4></div><button onClick={() => onUpdateSettings('showAge', !user.privacy.showAge)} className={`w-12 h-6 rounded-full transition-colors relative ${user.privacy.showAge ? 'bg-violet-600' : 'bg-gray-700'}`}><div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${user.privacy.showAge ? 'left-7' : 'left-1'}`} /></button></div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full relative pb-24">
+      <div className="absolute top-4 left-4 z-20"><button onClick={onBack} className="flex items-center gap-2 bg-black/60 backdrop-blur-md text-white px-4 py-2 rounded-full hover:bg-black/80 transition-all border border-white/10"><ArrowLeft size={16} /> Voltar</button></div>
+      <div className="h-56 bg-gradient-to-b from-violet-900/40 to-[#0a0a0a] relative z-0">{isOwnProfile && <button onClick={() => setShowSettings(true)} className="absolute top-4 right-4 bg-black/50 p-2 rounded-full backdrop-blur hover:bg-white/10 text-white z-20 border border-white/10"><Settings size={20} /></button>}</div>
+      <div className="px-4 relative z-10 -mt-16 flex flex-col items-center text-center">
+         <div className={`w-32 h-32 rounded-full bg-gray-900 overflow-hidden relative shadow-2xl ${hasGoldFrame ? 'ring-4 ring-yellow-400 shadow-yellow-500/20' : 'ring-4 ring-[#0a0a0a]'} pointer-events-none`}><img src={user.avatar} className="w-full h-full object-cover" /></div>
+         <div className="mt-4 w-full max-w-lg">
+            <h1 className={`text-3xl font-bold flex items-center justify-center gap-2 ${hasNeonName ? 'text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-400 to-cyan-400 drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]' : 'text-white'}`}>{user.nickname}{user.level >= 5 && <Award className="text-yellow-400" size={24} />}</h1>
+            <div className="flex justify-center gap-8 py-4 border-b border-white/5 mb-4"><div className="text-center"><div className="text-lg font-bold text-white">{user.followersCount || 0}</div><div className="text-[10px] uppercase text-gray-500 font-bold">Seguidores</div></div><div className="text-center"><div className="text-lg font-bold text-white">{user.following?.length || 0}</div><div className="text-[10px] uppercase text-gray-500 font-bold">Seguindo</div></div><div className="text-center"><div className="text-lg font-bold text-white">{userPosts.length || 0}</div><div className="text-[10px] uppercase text-gray-500 font-bold">Posts</div></div></div>
+            <div className="flex flex-col items-center gap-1 mb-4 text-sm text-gray-400">{canSeeName && <span>{user.name}</span>}{canSeeAge && <span>{user.age ? `${user.age} anos` : ''}</span>}{!canSeeName && !isOwnProfile && <span className="flex items-center gap-1 text-[10px] bg-white/5 px-2 py-0.5 rounded"><ShieldCheck size={10}/> Nome Privado</span>}</div>
+            <div className="relative bg-white/5 p-4 rounded-xl border border-white/5 mb-4"><p className="text-gray-300 text-sm leading-relaxed whitespace-pre-line">{user.bio || "Escreva algo sobre você..."}</p>{isOwnProfile && <button onClick={onEditProfile} className="absolute top-2 right-2 text-gray-500 hover:text-white bg-black/20 p-1.5 rounded-lg"><Edit3 size={14} /></button>}</div>
+            <div className="flex justify-center gap-4 mt-2 mb-8">{!isOwnProfile ? (<LuminaButton onClick={() => onFollow(user.id)} variant={isFollowing ? 'outline' : 'primary'} size="sm" className={isFollowing ? "border-red-500/50 text-red-400 hover:bg-red-500/10" : ""}>{isFollowing ? 'Deixar de Seguir' : 'Seguir'}</LuminaButton>) : (<div className="text-xs text-gray-500 bg-white/5 px-4 py-2 rounded-xl border border-white/5">Seu Perfil</div>)}</div>
+            <div className="flex w-full border-b border-white/10 mb-6"><button onClick={() => setActiveTab('posts')} className={`flex-1 py-3 text-sm font-bold uppercase transition-colors ${activeTab === 'posts' ? 'text-white border-b-2 border-violet-500' : 'text-gray-500 hover:text-gray-300'}`}>Publicações</button>{isOwnProfile && <button onClick={() => setActiveTab('collection')} className={`flex-1 py-3 text-sm font-bold uppercase transition-colors ${activeTab === 'collection' ? 'text-white border-b-2 border-violet-500' : 'text-gray-500 hover:text-gray-300'}`}>Coleção ({purchasedPosts.length})</button>}</div>
+            <div className="grid grid-cols-1 gap-6 w-full">
+               {activeTab === 'posts' && userPosts.map(post => <PostCard key={post.id} post={post} creator={user} currentUser={currentUser} onUnlock={onUnlock} onBoost={onBoost} onToggleLike={onToggleLike} onRepost={onRepost} onUserClick={onUserClick} onOpenComments={onOpenComments} />)}
+               {activeTab === 'collection' && purchasedPosts.map(post => <PostCard key={post.id} post={{...post, locked: false}} creator={user} currentUser={currentUser} onUnlock={onUnlock} onBoost={onBoost} onToggleLike={onToggleLike} onRepost={onRepost} onUserClick={onUserClick} onOpenComments={onOpenComments} />)}
+            </div>
+         </div>
+      </div>
+    </div>
+  );
+};
+
+/* --- MAIN APP --- */
+export default function LuminaApp() {
+  const [view, setView] = useState('landing');
+  const [activeUser, setActiveUser] = useState(null); 
+  const [viewUser, setViewUser] = useState(null); 
+  const [allUsers, setAllUsers] = useState(INITIAL_USERS);
+  const [allPosts, setAllPosts] = useState(INITIAL_POSTS);
+  
+  // Modais
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [isCommentsOpen, setIsCommentsOpen] = useState(false);
+  const [showLevelBenefits, setShowLevelBenefits] = useState(false);
+  const [showCreatorDash, setShowCreatorDash] = useState(false);
+  const [showVipDash, setShowVipDash] = useState(false);
+  
+  const [activePost, setActivePost] = useState(null);
+  const [feedTab, setFeedTab] = useState('foryou');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Forms
+  const [authForm, setAuthForm] = useState({ name: '', email: '', password: '', confirmPassword: '', cpf: '', birthdate: '', nickname: '', tags: [], role: 'buyer' });
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [authTab, setAuthTab] = useState('login');
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) console.log("Firebase User:", user.uid);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const handleContextMenu = (e) => e.preventDefault();
+    document.addEventListener('contextmenu', handleContextMenu);
+    return () => document.removeEventListener('contextmenu', handleContextMenu);
+  }, []);
+
+  const navigateToProfile = (userId) => {
+    const targetUser = allUsers.find(u => u.id === userId);
+    if (targetUser) {
+        setViewUser(targetUser);
+        setView('profile');
+    }
+  };
+
+  const handleLogin = () => {
+    const user = allUsers.find(u => u.email === loginForm.email);
+    if (user) {
+      const nextLevel = getLevelInfo(user.xp).nextLevel;
+      const dailyBonus = nextLevel ? (nextLevel.minXp - user.xp) * 0.01 : 10;
+      const updatedUser = { ...user, xp: user.xp + Math.max(1, Math.floor(dailyBonus)) };
+      setAllUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+      setActiveUser(updatedUser);
+      setView('feed');
+      alert(`Login diário! +${Math.max(1, Math.floor(dailyBonus))} XP`);
+    } else {
+      alert("Usuário não encontrado.");
+    }
+  };
+
+  const handleRegister = async () => {
+    if (!authForm.name || !authForm.email || !authForm.password || !authForm.nickname) return alert("Preencha campos.");
+    if (authForm.password !== authForm.confirmPassword) return alert("Senhas não conferem.");
+    await signInAnonymously(auth);
+    const newUser = {
+      id: Date.now(), ...authForm, age: calculateAge(authForm.birthdate),
+      xp: 0, balance: 100, avatar: "https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=200", 
+      inventory: [], following: [], followersCount: 0, postsCount: 0, unlockedIds: [], 
+      isVip: false, boostsRemaining: 0, salesRevenue: 0, salesCount: 0,
+      privacy: { showAge: false, showFullName: false }
+    };
+    setAllUsers([...allUsers, newUser]);
+    setActiveUser(newUser);
+    setView('feed');
+  };
+
+  const handleUnlockPost = (post) => {
+     if (activeUser.balance < post.price) return alert("Saldo insuficiente.");
+     const xpGain = Math.floor(post.price * 0.3);
+     const updatedBuyer = { ...activeUser, balance: activeUser.balance - post.price, xp: activeUser.xp + xpGain, unlockedIds: [...(activeUser.unlockedIds || []), post.id] };
+     const creator = allUsers.find(u => u.id === post.creatorId);
+     const updatedCreator = { ...creator, salesRevenue: (creator?.salesRevenue || 0) + post.price, salesCount: (creator?.salesCount || 0) + 1 };
+     setAllUsers(prev => prev.map(u => { if (u.id === activeUser.id) return updatedBuyer; if (u.id === creator?.id) return updatedCreator; return u; }));
+     setActiveUser(updatedBuyer);
+     alert(`Conteúdo desbloqueado! +${xpGain} XP`);
+  };
+
+  const handleBuyStore = (item) => {
+    if (activeUser.balance < item.price) return alert("Saldo insuficiente.");
+    const xpGain = Math.floor(item.price * 0.3);
+    let updatedUser = { ...activeUser, balance: activeUser.balance - item.price, xp: activeUser.xp + xpGain };
+    if (item.type === 'cosmetic') { if (updatedUser.inventory.includes(item.id)) return alert("Já possui."); updatedUser.inventory.push(item.id); } 
+    else if (item.id === 'become_creator') { updatedUser.role = 'creator'; } 
+    else if (item.id === 'vip_sub') { updatedUser.isVip = true; updatedUser.boostsRemaining += 2; }
+    setAllUsers(prev => prev.map(u => u.id === activeUser.id ? updatedUser : u));
+    setActiveUser(updatedUser);
+    alert(`Compra realizada! +${xpGain} XP`);
+  };
+
+  const handleUpload = (data) => {
+    const newPost = { id: Date.now(), creatorId: activeUser.id, ...data, likes: 0, likedBy: [], comments: [], promoted: false };
+    setAllPosts([newPost, ...allPosts]);
+    const updatedUser = { ...activeUser, postsCount: (activeUser.postsCount || 0) + 1 };
+    setAllUsers(prev => prev.map(u => u.id === activeUser.id ? updatedUser : u));
+    setActiveUser(updatedUser);
+  };
+
+  const handleAddComment = (postId, text) => {
+    const newComment = { id: Date.now(), userId: activeUser.id, username: activeUser.nickname, avatar: activeUser.avatar, text: text, isVip: activeUser.isVip, timestamp: new Date().toISOString() };
+    setAllPosts(prev => prev.map(p => { if (p.id === postId) { return { ...p, comments: [...(p.comments || []), newComment] }; } return p; }));
+  };
+
+  const handleBoost = (postId) => { /* Boost logic */ };
+  const handleToggleLike = (postId) => { /* Like logic */ };
+  const handleRepost = (post) => { /* Repost logic */ };
+  const handleFollow = (targetId) => { /* Follow logic */ };
+  const handleSettingsUpdate = (key, value) => { let updatedUser = { ...activeUser }; updatedUser.privacy[key] = value; setAllUsers(prev => prev.map(u => u.id === activeUser.id ? updatedUser : u)); setActiveUser(updatedUser); };
+  const handleProfileSave = (newData) => { const updatedUser = { ...activeUser, ...newData }; setAllUsers(prev => prev.map(u => u.id === activeUser.id ? updatedUser : u)); setActiveUser(updatedUser); };
+
+  const filteredPosts = useMemo(() => {
+    if (!activeUser) return allPosts;
+    let posts = allPosts;
+    if (searchQuery) return posts.filter(p => p.title.toLowerCase().includes(searchQuery.toLowerCase()));
+    if (feedTab === 'following') return posts.filter(p => activeUser.following.includes(p.creatorId) || p.creatorId === activeUser.id);
+    return posts.filter(p => p.promoted || p.tags?.some(t => activeUser.tags?.includes(t)) || p.creatorId === activeUser.id);
+  }, [allPosts, feedTab, activeUser, searchQuery]);
+
+  return (
+    <div className="min-h-screen bg-[#0a0a0a] text-white font-sans selection:bg-violet-500/30 select-none">
+      <MeshGradient />
+      <AnimatePresence mode="wait">
+        {view === 'landing' && (
+          <motion.div key="landing" exit={{ opacity: 0 }} className="absolute inset-0 z-40 overflow-y-auto p-4 flex items-center justify-center">
+             <div className="w-full max-w-4xl grid md:grid-cols-2 gap-12 items-center">
+                <div className="text-center md:text-left"><h1 className="text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-500 mb-4">LUMINA</h1><p className="text-gray-400">A plataforma definitiva para a elite visual.</p></div>
+                <div className="bg-[#121212] border border-white/10 rounded-3xl p-8 shadow-2xl">
+                   <div className="flex border-b border-white/10 mb-6"><button onClick={() => setAuthTab('login')} className={`flex-1 pb-3 text-sm font-bold uppercase ${authTab === 'login' ? 'text-white border-b-2 border-violet-500' : 'text-gray-500'}`}>Entrar</button><button onClick={() => setAuthTab('register')} className={`flex-1 pb-3 text-sm font-bold uppercase ${authTab === 'register' ? 'text-white border-b-2 border-violet-500' : 'text-gray-500'}`}>Cadastrar</button></div>
+                   {authTab === 'login' ? (
+                      <div className="space-y-4">
+                         <input placeholder="Email" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white" value={loginForm.email} onChange={e => setLoginForm({...loginForm, email: e.target.value})} />
+                         <input type="password" placeholder="Senha" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white" value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} />
+                         <div className="text-right"><button onClick={() => alert("Link enviado!")} className="text-xs text-violet-400">Esqueci a senha</button></div>
+                         <LuminaButton onClick={handleLogin} className="w-full">Entrar</LuminaButton>
+                      </div>
+                   ) : (
+                      <div className="space-y-3 h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                         <div className="flex gap-2"><button onClick={() => setAuthForm({...authForm, role: 'buyer'})} className={`flex-1 p-2 rounded-lg text-xs font-bold border ${authForm.role === 'buyer' ? 'bg-violet-600 border-violet-600 text-white' : 'border-white/10 text-gray-500'}`}>Comprador</button><button onClick={() => setAuthForm({...authForm, role: 'creator'})} className={`flex-1 p-2 rounded-lg text-xs font-bold border ${authForm.role === 'creator' ? 'bg-violet-600 border-violet-600 text-white' : 'border-white/10 text-gray-500'}`}>Criador</button></div>
+                         <input placeholder="Nome" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-xs" value={authForm.name} onChange={e => setAuthForm({...authForm, name: e.target.value})} />
+                         <input type="date" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-xs" value={authForm.birthdate} onChange={e => setAuthForm({...authForm, birthdate: e.target.value})} />
+                         <input placeholder="CPF" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-xs" value={authForm.cpf} onChange={e => setAuthForm({...authForm, cpf: maskCPF(e.target.value)})} />
+                         <input placeholder="Nickname" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-xs" value={authForm.nickname} onChange={e => setAuthForm({...authForm, nickname: e.target.value})} />
+                         <input placeholder="Email" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-xs" value={authForm.email} onChange={e => setAuthForm({...authForm, email: e.target.value})} />
+                         <input type="password" placeholder="Senha" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-xs" value={authForm.password} onChange={e => setAuthForm({...authForm, password: e.target.value})} />
+                         <input type="password" placeholder="Confirmar Senha" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-xs" value={authForm.confirmPassword} onChange={e => setAuthForm({...authForm, confirmPassword: e.target.value})} />
+                         <LuminaButton onClick={handleRegister} className="w-full mt-2">Criar Conta</LuminaButton>
+                      </div>
+                   )}
+                </div>
+             </div>
+          </motion.div>
+        )}
+
+        {view !== 'landing' && activeUser && (
+          <motion.div key="app-shell" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+             <nav className="fixed top-0 left-0 right-0 z-40 h-20 flex items-center justify-between px-4 md:px-8 backdrop-blur-xl bg-black/80 border-b border-white/5">
+                <div className="flex items-center gap-4 cursor-pointer" onClick={() => setView('feed')}><div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-blue-600 flex items-center justify-center text-white font-bold text-xl shadow-lg">L</div></div>
+                <div className="hidden md:flex flex-1 max-w-md mx-8 relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" /><input placeholder="Buscar..." className="w-full bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-violet-500" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} /></div>
+                <div className="flex items-center gap-4">
+                   <div className="hidden md:block"><XPProgressBar xp={activeUser.xp} onClick={() => setShowLevelBenefits(true)} /></div>
+                   <div className="flex flex-col items-end"><span className="text-[10px] text-gray-400 uppercase font-bold">Saldo</span><span className="text-yellow-400 font-bold text-sm">R$ {activeUser.balance.toFixed(2)}</span></div>
+                   <div onClick={() => { setViewUser(activeUser); setView('profile'); }} className={`w-10 h-10 rounded-full cursor-pointer overflow-hidden border-2 ${activeUser.inventory.includes('frame_gold') ? 'border-yellow-400' : 'border-white/20'}`}><img src={activeUser.avatar} className="w-full h-full object-cover" /></div>
+                </div>
+             </nav>
+
+             <FloatingDock view={view} setView={setView} user={activeUser} onUpload={() => setIsUploadOpen(true)} onViewSelf={() => { setViewUser(activeUser); setView('profile'); }} />
+
+             <main className="pt-24 pb-32 min-h-screen max-w-5xl mx-auto px-4">
+               {view === 'feed' && (
+                  <>
+                    <div className="flex gap-4 mb-6 border-b border-white/10 pb-2 justify-center"><button onClick={() => setFeedTab('foryou')} className={`text-sm font-bold pb-2 px-4 ${feedTab === 'foryou' ? 'text-white border-b-2 border-violet-500' : 'text-gray-500'}`}>Para Você</button><button onClick={() => setFeedTab('following')} className={`text-sm font-bold pb-2 px-4 ${feedTab === 'following' ? 'text-white border-b-2 border-violet-500' : 'text-gray-500'}`}>Seguindo</button></div>
+                    <div className="flex flex-col gap-6">{filteredPosts.map(post => <PostCard key={post.id} post={post} currentUser={activeUser} creator={allUsers.find(u => u.id === post.creatorId)} onUnlock={handleUnlockPost} onBoost={() => {/* boost logic */}} onToggleLike={() => {/* like logic */}} onRepost={() => {/* repost logic */}} onUserClick={navigateToProfile} onOpenComments={(p) => { setActivePost(p); setIsCommentsOpen(true); }} />)}</div>
+                  </>
+               )}
+
+               {view === 'profile' && viewUser && (
+                  <>
+                    <div className="mb-6 flex justify-end gap-2">
+                       {viewUser.id === activeUser.id && activeUser.role === 'creator' && (<button onClick={() => setShowCreatorDash(true)} className="bg-green-500/10 text-green-400 border border-green-500/20 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2"><Banknote size={14}/> Painel Criador</button>)}
+                       {viewUser.id === activeUser.id && activeUser.isVip && (<button onClick={() => setShowVipDash(true)} className="bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2"><Crown size={14}/> Área VIP</button>)}
+                    </div>
+                    <UserProfile user={viewUser} currentUser={activeUser} posts={allPosts} onFollow={handleFollow} onUpdateSettings={handleSettingsUpdate} onBack={() => setView('feed')} onEditProfile={() => setIsEditProfileOpen(true)} onUserClick={navigateToProfile} onOpenComments={(p) => { setActivePost(p); setIsCommentsOpen(true); }} onToggleLike={handleToggleLike} onRepost={handleRepost} onBoost={handleBoost} onUnlock={handleUnlockPost} />
+                  </>
+               )}
+
+               {view === 'store' && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">{STORE_ITEMS.map(item => <div key={item.id} className="bg-[#121212] p-6 rounded-2xl border border-white/5"><item.icon className="text-violet-400 mb-4" size={32}/><h3 className="text-lg font-bold">{item.name}</h3><p className="text-gray-500 text-sm mb-4">{item.description}</p><LuminaButton onClick={() => handleBuyStore(item)} className="w-full" variant="glass">Comprar R$ {item.price}</LuminaButton></div>)}</div>
+               )}
+             </main>
+
+             <CreatePostOverlay isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} onUpload={handleUpload} currentUser={activeUser} />
+             <CommentsOverlay isOpen={isCommentsOpen} onClose={() => setIsCommentsOpen(false)} post={activePost} currentUser={activeUser} onAddComment={handleAddComment} />
+             <LevelBenefitsModal isOpen={showLevelBenefits} onClose={() => setShowLevelBenefits(false)} currentLevel={getLevelInfo(activeUser.xp).level} />
+             <CreatorDashboardOverlay isOpen={showCreatorDash} onClose={() => setShowCreatorDash(false)} user={activeUser} onSaveBank={(info) => { /* Save bank */ }} onWithdraw={() => { /* Withdraw */ }} />
+             <VipDashboardOverlay isOpen={showVipDash} onClose={() => setShowVipDash(false)} user={activeUser} />
+             <EditProfileModal isOpen={isEditProfileOpen} onClose={() => setIsEditProfileOpen(false)} user={activeUser} onSave={handleProfileSave} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <style>{`.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-track { background: #121212; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }`}</style>
+    </div>
+  );
+}
